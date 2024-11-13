@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Realtime Database Demo</title>
+</head>
+<body>
+  <h1>成績輸入</h1>
+  <label for="scoreInput">請輸入成績:</label>
+  <input type="number" id="scoreInput" placeholder="成績">
+  <button id="submitScore">送出</button>
+
+  <script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { getDatabase, ref, set, push } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+    // Firebase configuration with the correct database URL
+    const firebaseConfig = {
+      apiKey: "AIzaSyCmD0mEppKbFaX2vqbPpPUvQ_9ISPQMEJs",
+      authDomain: "web1113-41241211.firebaseapp.com",
+      databaseURL: "https://web1113-41241211-default-rtdb.asia-southeast1.firebasedatabase.app", // Updated URL
+      projectId: "web1113-41241211",
+      storageBucket: "web1113-41241211.firebasestorage.app",
+      messagingSenderId: "313858937681",
+      appId: "1:313858937681:web:1c9400dabddde11442f970"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+
+    // Reference for storing scores
+    const scoresRef = ref(database, 'scores');
+
+    // Add event listener to the button
+    document.getElementById('submitScore').addEventListener('click', () => {
+      const score = document.getElementById('scoreInput').value;
+
+      if (score) {
+        // Push new score to the database
+        const newScoreRef = push(scoresRef);
+        set(newScoreRef, {
+          score: parseInt(score)
+        }).then(() => {
+          alert('成績已成功送出！');
+          document.getElementById('scoreInput').value = ''; // Clear input field
+        }).catch((error) => {
+          alert('錯誤：' + error.message);
+        });
+      } else {
+        alert('請輸入成績');
+      }
+    });
+  </script>
+</body>
+</html>
