@@ -48,11 +48,19 @@
       <button class="btn btn-danger" id="logoutButton">登出</button>
     </div>
 
-    <!-- 嵌入的 YouTube 影片 -->
-    <div class="text-center mt-5">
-      <h2>僅限會員觀看影片</h2>
-      <div style="pointer-events: none;" id="videoContainer">
-        <iframe id="restrictedVideo" width="560" height="315" src="https://www.youtube.com/embed/xdfVomq3lAc" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    <!-- 嵌入的 YouTube 影片和聊天室 -->
+    <div class="row mt-5">
+      <div class="col-md-6 text-center">
+        <h2>僅限會員觀看影片</h2>
+        <div style="pointer-events: none;" id="videoContainer">
+          <iframe id="restrictedVideo" width="100%" height="315" src="https://www.youtube.com/embed/xdfVomq3lAc" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <h2>聊天室</h2>
+        <div id="chatMessages" style="height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;"></div>
+        <input type="text" id="chatInput" class="form-control mt-2" placeholder="輸入訊息...">
+        <button class="btn btn-primary mt-2" id="sendButton">發送</button>
       </div>
     </div>
   </div>
@@ -61,7 +69,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-    import { getDatabase, ref, set, get, update } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+    import { getDatabase, ref, set, get, update, push, onChildAdded, onChildRemoved, remove } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
     // Firebase configuration
     const firebaseConfig = {
@@ -79,6 +87,7 @@
     const auth = getAuth(app);
     const database = getDatabase(app);
     const provider = new GoogleAuthProvider();
+    const chatRef = ref(database, 'chat');
 
     // 註冊按鈕
     document.getElementById('registerButton').addEventListener('click', async () => {
@@ -90,7 +99,6 @@
         // Check if user is already registered
         const snapshot = await get(userRef);
         if (snapshot.exists()) {
-          // 如果使用者已存在，提示使用者去登入並自動登出
           await signOut(auth);
           Swal.fire({
             icon: 'info',
@@ -98,7 +106,6 @@
             text: '該帳號已註冊，請前往登入。',
           });
         } else {
-          // 如果使用者不存在，進行註冊
           const currentDate = new Date().toLocaleString();
           await set(userRef, {
             email: user.email,
@@ -122,17 +129,14 @@
         const user = result.user;
         const userRef = ref(database, 'users/' + user.email.replace('.', '_'));
 
-        // Check if user is registered
         const snapshot = await get(userRef);
         if (snapshot.exists()) {
-          // 如果已註冊，更新最後登入時間並顯示使用者資訊
           const currentDate = new Date().toLocaleString();
           await update(userRef, { lastLogin: currentDate });
           displayUserInfo(user, currentDate);
           Swal.fire('登入成功', '歡迎回來！', 'success');
           enableVideo();
         } else {
-          // 如果未註冊，登出並顯示未註冊的提示彈窗
           await signOut(auth);
           Swal.fire({
             icon: 'error',
@@ -157,7 +161,7 @@
     // 啟用影片觀看
     function enableVideo() {
       const videoContainer = document.getElementById('videoContainer');
-      videoContainer.style.pointerEvents = 'auto';  // 解除禁用
+      videoContainer.style.pointerEvents = 'auto';
     }
 
     // 登出按鈕
@@ -165,7 +169,7 @@
       signOut(auth).then(() => {
         Swal.fire('已成功登出', '', 'success');
         document.getElementById('userInfo').style.display = 'none';
-        disableVideo();  // 登出後禁用影片
+        disableVideo();
       }).catch((error) => {
         console.error('登出失敗', error);
         Swal.fire('登出失敗', error.message, 'error');
@@ -195,13 +199,53 @@
       }
     });
 
+    // Chatroom functionality
+    document.getElementById('sendButton').addEventListener('click', async () => {
+      const user = auth.currentUser;
+      if (user) {
+        const chatInput = document.getElementById('chatInput');
+        const message = chatInput.value.trim();
+        if (message) {
+          await push(chatRef, {
+            message: message,
+            sender: user.displayName || '匿名',
+            timestamp: moment().format('YYYY-MM-DD HH:mm:ss')
+          });
+          chatInput.value = '';
+        }
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: '未登入',
+          text: '請先註冊或登入後再發送訊息。',
+        });
+      }
+    });
+
+    // Display chat messages
+    onChildAdded(chatRef, (data) => {
+      const chatMessages = document.getElementById('chatMessages');
+      const messageData = data.val();
+      const messageElement = document.createElement('p');
+      messageElement.textContent = `${messageData.sender}: ${messageData.message} (${messageData.timestamp})`;
+      messageElement.dataset.key = data.key;
+      chatMessages.appendChild(messageElement);
+
+      // Remove oldest messages if more than 5
+      if (chatMessages.childNodes.length > 5) {
+        const oldestMessage = chatMessages.firstChild;
+        const oldestMessageKey = oldestMessage.dataset.key;
+        remove(ref(database, 'chat/' + oldestMessageKey)); // Remove from database
+        oldestMessage.remove(); // Remove from UI
+      }
+    });
+
     // 使用 Moment.js 顯示實時日期和時間
     function updateDateTime() {
       const currentDateTime = moment().format('YYYY-MM-DD HH:mm:ss');
       document.getElementById('currentDateTime').textContent = currentDateTime;
     }
     
-    // 每秒更新時間
     setInterval(updateDateTime, 1000);
   </script>
 
