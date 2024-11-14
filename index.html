@@ -22,7 +22,6 @@
           <button class="nav-link" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">登入</button>
         </li>
       </ul>
-      <!-- 右側的日期和時間 -->
       <span id="currentDateTime" class="ms-auto"></span>
     </div>
 
@@ -75,7 +74,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-    import { getDatabase, ref, set, get, update, push, onChildAdded, onValue, remove } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+    import { getDatabase, ref, set, get, update, push, onChildAdded, onValue, remove, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
     // Firebase configuration
     const firebaseConfig = {
@@ -102,15 +101,10 @@
         const user = result.user;
         const userRef = ref(database, 'users/' + user.email.replace('.', '_'));
 
-        // Check if user is already registered
         const snapshot = await get(userRef);
         if (snapshot.exists()) {
           await signOut(auth);
-          Swal.fire({
-            icon: 'info',
-            title: '帳號已存在',
-            text: '該帳號已註冊，請前往登入。',
-          });
+          Swal.fire('帳號已存在', '該帳號已註冊，請前往登入。', 'info');
         } else {
           const currentDate = new Date().toLocaleString();
           await set(userRef, {
@@ -119,7 +113,7 @@
             photoURL: user.photoURL || 'https://via.placeholder.com/100',
             lastLogin: currentDate
           });
-          Swal.fire('註冊成功', '帳號已成功註冊並儲存到資料庫', 'success');
+          Swal.fire('註冊成功', '帳號已成功註冊', 'success');
           displayUserInfo(user, currentDate);
           enableVideo();
         }
@@ -144,11 +138,7 @@
           enableVideo();
         } else {
           await signOut(auth);
-          Swal.fire({
-            icon: 'error',
-            title: '帳號未註冊',
-            text: '請先註冊後再登入。',
-          });
+          Swal.fire('帳號未註冊', '請先註冊後再登入。', 'error');
         }
       } catch (error) {
         console.error('登入失敗', error);
@@ -164,8 +154,7 @@
     }
 
     function enableVideo() {
-      const videoContainer = document.getElementById('videoContainer');
-      videoContainer.style.pointerEvents = 'auto';
+      document.getElementById('videoContainer').style.pointerEvents = 'auto';
     }
 
     document.getElementById('logoutButton').addEventListener('click', () => {
@@ -180,8 +169,7 @@
     });
 
     function disableVideo() {
-      const videoContainer = document.getElementById('videoContainer');
-      videoContainer.style.pointerEvents = 'none';
+      document.getElementById('videoContainer').style.pointerEvents = 'none';
     }
 
     onAuthStateChanged(auth, async (user) => {
@@ -207,11 +195,7 @@
       const messageText = messageInput.value;
 
       if (!user) {
-        Swal.fire({
-          icon: 'error',
-          title: '未登入或未註冊',
-          text: '請先註冊或登入才能發送訊息。',
-        });
+        Swal.fire('未登入或未註冊', '請先註冊或登入才能發送訊息。', 'error');
         return;
       }
 
@@ -227,27 +211,33 @@
       messageInput.value = '';
     });
 
-    // 顯示最新訊息
-    onChildAdded(messagesRef, (snapshot) => {
-      const message = snapshot.val();
-      const messageElement = document.createElement('div');
-      messageElement.textContent = `[${moment(message.timestamp).format('HH:mm:ss')}] ${message.sender}: ${message.text}`;
-      document.getElementById('chatMessages').appendChild(messageElement);
-      document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+    // 即時監聽最新的15條訊息，並顯示在聊天室
+    onValue(query(messagesRef, limitToLast(15)), (snapshot) => {
+      const chatMessagesElement = document.getElementById('chatMessages');
+      chatMessagesElement.innerHTML = '';  // 清空舊訊息
 
-      // 限制訊息數量
-      onValue(messagesRef, async (snapshot) => {
-        if (snapshot.size > 50) {
-          const oldestMessageKey = Object.keys(snapshot.val())[0];
-          const oldestMessageRef = ref(database, 'chatMessages/' + oldestMessageKey);
-          await remove(oldestMessageRef);
-        }
+      snapshot.forEach((messageSnapshot) => {
+        const message = messageSnapshot.val();
+        const messageElement = document.createElement('div');
+        messageElement.textContent = `[${moment(message.timestamp).format('HH:mm:ss')}] ${message.sender}: ${message.text}`;
+        chatMessagesElement.appendChild(messageElement);
       });
+
+      chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
+    });
+
+    // 限制訊息數量並刪除最舊的訊息
+    onValue(messagesRef, async (snapshot) => {
+      if (snapshot.size > 15) {
+        const messages = snapshot.val();
+        const keys = Object.keys(messages);
+        const oldestMessageKey = keys[0];
+        await remove(ref(database, 'chatMessages/' + oldestMessageKey));
+      }
     });
 
     function updateDateTime() {
-      const currentDateTime = moment().format('YYYY-MM-DD HH:mm:ss');
-      document.getElementById('currentDateTime').textContent = currentDateTime;
+      document.getElementById('currentDateTime').textContent = moment().format('YYYY-MM-DD HH:mm:ss');
     }
 
     setInterval(updateDateTime, 1000);
