@@ -237,7 +237,7 @@
 
       // 限制訊息數量
       onValue(messagesRef, async (snapshot) => {
-        if (snapshot.size > 500) {
+        if (snapshot.size > 50) {
           const oldestMessageKey = Object.keys(snapshot.val())[0];
           const oldestMessageRef = ref(database, 'chatMessages/' + oldestMessageKey);
           await remove(oldestMessageRef);
