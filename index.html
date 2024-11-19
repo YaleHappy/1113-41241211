@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,18 +9,21 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/min/moment.min.js"></script>
 </head>
+
 <body>
   <div class="container mt-5">
     <h1 class="text-center">會員系統和聊天室</h1>
-    
+
     <!-- Nav Tabs -->
     <div class="d-flex justify-content-between align-items-center">
       <ul class="nav nav-tabs" id="authTabs" role="tablist">
         <li class="nav-item" role="presentation">
-          <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#register" type="button" role="tab">註冊</button>
+          <button class="nav-link active" id="register-tab" data-bs-toggle="tab" data-bs-target="#register"
+            type="button" role="tab">註冊</button>
         </li>
         <li class="nav-item" role="presentation">
-          <button class="nav-link" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button" role="tab">登入</button>
+          <button class="nav-link" id="login-tab" data-bs-toggle="tab" data-bs-target="#login" type="button"
+            role="tab">登入</button>
         </li>
       </ul>
       <span id="currentDateTime" class="ms-auto"></span>
@@ -31,13 +35,13 @@
       <div class="tab-pane fade show active" id="register" role="tabpanel">
         <button class="btn btn-primary" id="registerButton">使用 Google 註冊</button>
       </div>
-      
+
       <!-- 登入 Tab -->
       <div class="tab-pane fade" id="login" role="tabpanel">
         <button class="btn btn-primary" id="loginButton">使用 Google 登入</button>
       </div>
     </div>
-    
+
     <!-- 使用者資訊區域，初始為隱藏 -->
     <div id="userInfo" class="text-center mt-5" style="display:none;">
       <img id="userPhoto" alt="User Photo" class="rounded-circle" style="width:100px;height:100px;">
@@ -52,14 +56,18 @@
       <div class="col-md-6 text-center">
         <h2>僅限會員觀看影片</h2>
         <div style="pointer-events: none;" id="videoContainer">
-          <iframe id="restrictedVideo" width="560" height="315" src="https://www.youtube.com/embed/xdfVomq3lAc" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          <iframe id="restrictedVideo" width="560" height="315" src="https://www.youtube.com/embed/xdfVomq3lAc"
+            title="YouTube video player" frameborder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen></iframe>
         </div>
       </div>
-      
+
       <!-- 聊天室 -->
       <div class="col-md-6">
         <h2>聊天室</h2>
-        <div id="chatMessages" class="border border-secondary rounded p-3 mb-3" style="height: 300px; overflow-y: scroll;">
+        <div id="chatMessages" class="border border-secondary rounded p-3 mb-3"
+          style="height: 300px; overflow-y: scroll;">
           <!-- 訊息顯示區域 -->
         </div>
         <div class="input-group">
@@ -86,6 +94,7 @@
       messagingSenderId: "313858937681",
       appId: "1:313858937681:web:1c9400dabddde11442f970"
     };
+
 
     // Initialize Firebase
     const app = initializeApp(firebaseConfig);
@@ -130,10 +139,19 @@
         const userRef = ref(database, 'users/' + user.email.replace('.', '_'));
 
         const snapshot = await get(userRef);
+
+
         if (snapshot.exists()) {
+          const userData = snapshot.val();
+          const lastLoginFromDB = userData.lastLogin || '無上次登入記錄'; // 從資料庫獲取上次登入時間
+
+          // 顯示上次登入日期
+          displayUserInfo(user, lastLoginFromDB);
+
+          // 更新最後登入日期
           const currentDate = new Date().toLocaleString();
           await update(userRef, { lastLogin: currentDate });
-          displayUserInfo(user, currentDate);
+
           Swal.fire('登入成功', '歡迎回來！', 'success');
           enableVideo();
         } else {
@@ -153,24 +171,22 @@
       document.getElementById('lastLogin').textContent = lastLoginDate;
     }
 
+
     function enableVideo() {
-      document.getElementById('videoContainer').style.pointerEvents = 'auto';
+      const videoContainer = document.getElementById('videoContainer');
+      const videoFrame = document.getElementById('restrictedVideo');
+      videoContainer.style.pointerEvents = 'auto';
+      videoFrame.src = 'https://www.youtube.com/embed/xdfVomq3lAc'; // 恢復影片 src
     }
 
-    document.getElementById('logoutButton').addEventListener('click', () => {
-      signOut(auth).then(() => {
-        Swal.fire('已成功登出', '', 'success');
-        document.getElementById('userInfo').style.display = 'none';
-        disableVideo();
-      }).catch((error) => {
-        console.error('登出失敗', error);
-        Swal.fire('登出失敗', error.message, 'error');
-      });
-    });
 
     function disableVideo() {
-      document.getElementById('videoContainer').style.pointerEvents = 'none';
+      const videoContainer = document.getElementById('videoContainer');
+      const videoFrame = document.getElementById('restrictedVideo');
+      videoContainer.style.pointerEvents = 'none';
+      videoFrame.src = ''; // 清空 src 停止播放
     }
+
 
     onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -179,6 +195,7 @@
 
         if (snapshot.exists()) {
           const userData = snapshot.val();
+
           displayUserInfo(user, userData.lastLogin);
           enableVideo();
         }
@@ -207,9 +224,17 @@
         sender: user.displayName || '無名氏',
         timestamp: Date.now()
       });
-      
+
       messageInput.value = '';
     });
+
+    document.getElementById('messageInput').addEventListener('keydown', async (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault(); // 防止按下 Enter 時換行
+        document.getElementById('sendButton').click(); // 模擬點擊發送按鈕
+      }
+    });
+
 
     // 即時監聽最新的15條訊息，並顯示在聊天室
     onValue(query(messagesRef, limitToLast(15)), (snapshot) => {
@@ -241,9 +266,41 @@
     }
 
     setInterval(updateDateTime, 1000);
+
+    // 登出按鈕
+    document.getElementById('logoutButton').addEventListener('click', () => {
+      signOut(auth)
+        .then(() => {
+          Swal.fire('已成功登出', '', 'success');
+          document.getElementById('userInfo').style.display = 'none';
+
+          // 停止影片播放
+          const videoFrame = document.getElementById('restrictedVideo');
+          videoFrame.src = ''; // 清空 src 停止播放
+          disableVideo(); // 禁用影片區域
+        })
+        .catch((error) => {
+          console.error('登出失敗', error);
+          Swal.fire('登出失敗', error.message, 'error');
+        });
+    });
+
+
+
+    // 當使用者關閉頁面時自動登出
+    window.onbeforeunload = () => {
+      const user = auth.currentUser;
+      if (user) {
+        // 同步登出
+        signOut(auth).catch((error) => {
+          console.error('關閉網頁時登出失敗', error);
+        });
+      }
+    };
   </script>
 
   <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
 </body>
+
 </html>
